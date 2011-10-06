@@ -1,35 +1,12 @@
 <?php
-class Path extends Point
-{
-    /**
-     * @var Path
-     */
-    private $previous = null;
-
-
-    /**
-     * @param Path $prev
-     * @return Path
-     */
-    public function setPrevious(Path $prev)
-    {
-        $this->previous = $prev;
-        return $this;
-    }
-
-
-    /**
-     * @return null|Path
-     */
-    public function getPrevious()
-    {
-        return $this->previous;
-    }
-}
-
-
 class Point
 {
+    const TYPE_START  = 'S';
+    const TYPE_FINISH = 'F';
+    const TYPE_PATH   = 'P';
+    const TYPE_WALL   = 'W';
+    
+
     /**
      * @var int
      */
@@ -40,15 +17,27 @@ class Point
      */
     private $y = 0;
 
+    /**
+     * @var string
+     */
+    private $type = null;
+
+    /**
+     * @var int
+     */
+    private $score = null;
+
 
     /**
      * @param int $x
      * @param int $y
+     * @param string $type
      */
-    public function __construct($x, $y)
+    public function __construct($x, $y, $type)
     {
         $this->x = $x;
         $this->y = $y;
+        $this->type = $type;
     }
 
 
@@ -73,6 +62,44 @@ class Point
     /**
      * @return string
      */
+    public function getType()
+    {
+        return $this->type;
+    }
+
+
+    /**
+     * @return int|null
+     */
+    public function getScore()
+    {
+        return $this->score;
+    }
+
+
+    /**
+     * @param int $score
+     * @return Point
+     */
+    public function setScore($score)
+    {
+        $this->score = $score;
+        return $this;
+    }
+
+
+    /**
+     * @return bool
+     */
+    public function isScored()
+    {
+        return $this->score !== null;
+    }
+
+
+    /**
+     * @return string
+     */
     public function __toString()
     {
         return "{$this->getX()}-{$this->getY()}";
@@ -81,11 +108,6 @@ class Point
 
 class Maze
 {
-    const POINT_START = 'S';
-    const POINT_END   = 'E';
-    const POINT_PATH  = 'P';
-    const POINT_WALL  = 'W';
-
     /**
      * @var array
      */
@@ -100,6 +122,21 @@ class Maze
      * @var int
      */
     private $height = 0;
+
+    /**
+     * @var Point
+     */
+    private $startPoint = null;
+
+    /**
+     * @var Point
+     */
+    private $finishPoint = null;
+
+    /**
+     * @var bool
+     */
+    private $isScored = false;
 
 
     /**
@@ -120,18 +157,20 @@ class Maze
                 $color = imagecolorat($img, $x, $y);
                 switch ($color)
                 {
-                    case 255      : $type = Maze::POINT_START; break; // Blue
-                    case 16776960 : $type = Maze::POINT_END;   break; // Yellow
-                    case 0        : $type = Maze::POINT_WALL;  break; // Black
-                    case 16777215 :
-                    default       : $type = Maze::POINT_PATH;  break; // White
+                    case 255      : $type = Point::TYPE_START;  break; // Blue
+                    case 16776960 : $type = Point::TYPE_FINISH; break; // Yellow
+                    case 0        : $type = Point::TYPE_WALL;   break; // Black
+                    case 16777215 :                                    // White
+                    default       : $type = Point::TYPE_PATH;   break;
                 }
+
+                $point = new Point($x, $y, $type);
 
                 if (!isset($grid[$y])) {
                     $grid[$y] = array();
                 }
 
-                $grid[$y][$x] = $type;
+                $grid[$y][$x] = $point;
             }
         }
 
@@ -144,6 +183,26 @@ class Maze
      */
     private function __construct(array $grid)
     {
+        foreach ($grid as $xs) {
+            foreach ($xs as $point) {
+                $type = $point->getType();
+
+                if ($type == Point::TYPE_START) {
+                    $this->startPoint = $point;
+                } elseif ($type == Point::TYPE_FINISH) {
+                    $this->finishPoint = $point;
+                }
+            }
+        }
+
+        if (!$this->startPoint) {
+            throw new OutOfBoundsException('No start point found.');
+        }
+
+        if (!$this->finishPoint) {
+            throw new OutOfBoundsException('No finish point found.');
+        }
+
         $this->grid   = $grid;
         $this->width  = count($grid[0]);
         $this->height = count($grid);
@@ -159,201 +218,175 @@ class Maze
     }
 
 
+    /**
+     * @return Maze
+     */
+    public function scoreGrid()
+    {
+        if (!$this->isScored) {
+            $paths = $this->findConnectingPaths($this->startPoint);
+            $this->scorePathsRecursively($paths, 1);
+
+            $this->isScored = true;
+        }
+
+        return $this;
+    }
+
+
+    /**
+     * @param array $paths
+     * @param int $score
+     */
+    private function scorePathsRecursively(array $paths, $score)
+    {
+        if (empty($paths)) {
+            return;
+        }
+
+        $upcomingPaths = array();
+
+        foreach ($paths as $path) {
+            $path->setScore($score);
+
+            foreach ($this->findConnectingPaths($path) as $connectingPath) {
+                if (!$connectingPath->isScored()) {
+                    $upcomingPaths[] = $connectingPath;
+                }
+            }
+        }
+
+        $this->scorePathsRecursively($upcomingPaths, $score + 1);
+    }
+
+
+    /**
+     * @return array
+     */
     public function findRoute()
     {
-        $scores = $this->getScores();
-        $lastScore = array_pop($scores);
-        $lastPoint = $lastScore[0];
-        
         $route = array();
-        while ($lastPoint) {
-            $route[] = new Point($lastPoint->getX(), $lastPoint->getY());
-            $lastPoint = $lastPoint->getPrevious();
+
+        // We didn't reach the finish point :/
+        if (!$this->finishPoint->isScored()) {
+            return $route;
         }
 
-        // Remove start point
-        unset($route[count($route) - 1]);
-
-        $route = array_reverse($route);
-        
-        return $route;
+        return $this->findRouteRecursively($this->finishPoint);
     }
 
 
     /**
+     * @param Point $point
+     * @param array $route
      * @return array
      */
-    public function getScores()
+    private function findRouteRecursively(Point $point, array $route = array())
     {
-        $queue = $this->findNextPaths($this->getStartPoint());
-        return $this->scorePath($queue, array(), 1, array());
-    }
+        $nextPoint = null;
 
-
-    /**
-     * @param array $queue
-     * @param array $scores
-     * @param int $score
-     * @param array $scored
-     * @return array
-     */
-    private function scorePath(array $queue, array $scores, $score, array $scored)
-    {
-        if (empty($queue)) {
-            return $scores;
-        }
-
-        $nextQueue = array();
-
-        foreach ($queue as $p) {
-            if (!isset($scores[$score])) {
-                $scores[$score] = array();
+        foreach ($this->findConnectingPaths($point) as $nextPointCandidate) {
+            if (!$nextPointCandidate->isScored()) {
+                continue;
             }
 
-            $scores[$score][] = $p;
-            $scored[] = (string)$p;
+            if (!$nextPointCandidate->getScore() >= $point->getScore()) {
+                continue;
+            }
 
-            foreach ($this->findNextPaths($p) as $nextP) {
-                if (!in_array((string)$nextP, $scored)) {
-                    $nextQueue[] = $nextP;
-                }
+            if (array_key_exists((string)$nextPointCandidate, $route)) {
+                continue;
+            }
+
+            if (null === $nextPoint || $nextPointCandidate->getScore() < $nextPoint->getScore()) {
+                $nextPoint = $nextPointCandidate;
             }
         }
 
-        return $this->scorePath($nextQueue, $scores, $score + 1, $scored);
+        if (!$nextPoint || $nextPoint->getType() == Point::TYPE_START) {
+            return array_reverse($route);
+        }
+
+        $route[(string)$nextPoint] = $nextPoint;
+
+        return $this->findRouteRecursively($nextPoint, $route);
     }
 
 
     /**
-     * @param Point $p
+     * @param Point $point
      * @return array
      */
-    private function findNextPaths(Point $p)
+    private function findConnectingPaths(Point $point)
     {
-        $type = $this->getPointType($p);
-
-        if ($type == self::POINT_WALL) {
+        if (!in_array($point->getType(), array(Point::TYPE_START, Point::TYPE_FINISH, Point::TYPE_PATH))) {
             return array();
         }
-
-        $paths = array();
         
         $offsets = array(
-            new Point(-1, 0), // left of $p
-            new Point(0, -1), // above of $p
-            new Point(0, 1),  // below of $p
-            new Point(1, 0),  // right of $p
+            array('x' => -1, 'y' =>  0), // left of $p
+            array('x' =>  0, 'y' => -1), // above of $p
+            array('x' =>  0, 'y' =>  1), // below of $p
+            array('x' =>  1, 'y' =>  0), // right of $p
         );
 
+        $connectingPaths = array();
+
         foreach ($offsets as $offset) {
-            try {
-                $sibling = new Path($p->getX() + $offset->getX(), $p->getY() + $offset->getY());
-                $type = $this->getPointType($sibling);
+            // Build x/y of connecting point
+            $x = $point->getX() + $offset['x'];
+            $y = $point->getY() + $offset['y'];
 
-                if ($type == self::POINT_PATH) {
-                    $sibling->setPrevious($p);
-                    $paths[] = $sibling;
-                }
-            } catch (OutOfBoundsException $e) {}
-        }
-        
-        return $paths;
-    }
-
-
-    /**
-     * @param Point $p
-     * @return string
-     */
-    private function getPointType(Point $p)
-    {
-        if (!isset($this->grid[$p->getY()])) {
-            throw new OutOfBoundsException('No such Y: ' . $p->getY());
-        }
-
-        if (!isset($this->grid[$p->getY()][$p->getX()])) {
-            throw new OutOfBoundsException('No such X/Y: ' . $p->getX() . '/' . $p->getY());
-        }
-
-        return $this->grid[$p->getY()][$p->getX()];
-    }
-
-
-    /**
-     * @throws OutOfBoundsException
-     * @return Path
-     */
-    private function getStartPoint()
-    {
-        foreach ($this->grid as $y => $xs) {
-            foreach ($xs as $x => $type) {
-                if ($type == self::POINT_START) {
-                    return new Path($x, $y);
-                }
+            if (!isset($this->grid[$y])) {
+                continue;
             }
-        }
 
-        throw new OutOfBoundsException('No start point found');
-    }
-
-
-    /**
-     * @throws OutOfBoundsException
-     * @return Path
-     */
-    private function getEndPoint()
-    {
-        foreach ($this->grid as $y => $xs) {
-            foreach ($xs as $x => $type) {
-                if ($type == self::POINT_END) {
-                    return new Path($x, $y);
-                }
+            if (!isset($this->grid[$y][$x])) {
+                continue;
             }
+
+            $connectingPoint = $this->grid[$y][$x];
+
+            if (!in_array($connectingPoint->getType(), array(Point::TYPE_PATH, Point::TYPE_FINISH))) {
+                continue;
+            }
+
+            $connectingPaths[] = $connectingPoint;
         }
-        
-        throw new OutOfBoundsException('No end point found');
+
+        return $connectingPaths;
     }
 }
 
 
 $maze = Maze::createFromImage(__DIR__ . '/maze.png');
+$maze->scoreGrid();
 
-$grid = $maze->getGrid();
-
-// Invert scores
-$scores = array();
-foreach ($maze->getScores() as $score => $ps) {
-    foreach ($ps as $p) {
-        $scores[(string)$p] = $score;
-    }
-}
-
-$route = array();
-foreach ($maze->findRoute() as $p) {
-    $route[] = (string)$p;
+$routeKeys = array();
+foreach ($maze->findRoute() as $point) {
+    $routeKeys[] = (string)$point;
 }
 
 $o = '<div style="line-height: 20px; font-size: 10px;">';
-foreach ($grid as $y => $xs) {
-    foreach ($xs as $x => $type) {
-        $key = "$x-$y";
+foreach ($maze->getGrid() as $y => $xs) {
+    foreach ($xs as $x => $point) {
 
         $o .= '<div style="float: left; width: 20px; height: 20px; text-align: center;';
 
-        if (in_array($key, $route)) {
+        if (in_array((string)$point, $routeKeys)) {
             $o .= ' background-color: #bbb;';
         } else {
-            switch ($type)
+            switch ($point->getType())
             {
-                case Maze::POINT_START:
+                case Point::TYPE_START:
                     $o .= ' background-color: yellow;';
                     break;
 
-                case Maze::POINT_END:
+                case Point::TYPE_FINISH:
                     $o .= ' background-color: blue;';
                     break;
 
-                case Maze::POINT_WALL:
+                case Point::TYPE_WALL:
                     $o .= ' background-color: black;';
                     break;
             }
@@ -361,8 +394,8 @@ foreach ($grid as $y => $xs) {
 
         $o .= '">';
 
-        if (array_key_exists($key, $scores)) {
-            $o .= $scores[$key];
+        if ($point->isScored()) {
+            $o .= $point->getScore();
         }
 
         $o .= '</div>';
