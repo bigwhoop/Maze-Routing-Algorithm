@@ -205,8 +205,7 @@ class Maze
             }
         }
 
-        // Seems like we could not find the start.
-        // This means we could nto find the route.
+        // Seems like we could not find the start. -> No route.
         if (!$nextPoint) {
             return array();
         }
@@ -231,10 +230,10 @@ class Maze
         }
         
         $offsets = array(
-            array('x' => -1, 'y' =>  0), // left of $p
-            array('x' =>  0, 'y' => -1), // above of $p
-            array('x' =>  0, 'y' =>  1), // below of $p
-            array('x' =>  1, 'y' =>  0), // right of $p
+            array('x' => -1, 'y' =>  0), // left of $point
+            array('x' =>  0, 'y' => -1), // above $point
+            array('x' =>  0, 'y' =>  1), // below $point
+            array('x' =>  1, 'y' =>  0), // right of $point
         );
 
         $connectingPaths = array();
@@ -254,11 +253,9 @@ class Maze
 
             $connectingPoint = $this->grid[$y][$x];
 
-            if (!in_array($connectingPoint->getType(), $possiblePointTypes)) {
-                continue;
+            if (in_array($connectingPoint->getType(), $possiblePointTypes)) {
+                $connectingPaths[] = $connectingPoint;
             }
-
-            $connectingPaths[] = $connectingPoint;
         }
 
         return $connectingPaths;
