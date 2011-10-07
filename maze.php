@@ -114,16 +114,6 @@ class Maze
     private $grid = array();
 
     /**
-     * @var int
-     */
-    private $width = 0;
-
-    /**
-     * @var int
-     */
-    private $height = 0;
-
-    /**
      * @var Point
      */
     private $startPoint = null;
@@ -203,9 +193,7 @@ class Maze
             throw new OutOfBoundsException('No finish point found.');
         }
 
-        $this->grid   = $grid;
-        $this->width  = count($grid[0]);
-        $this->height = count($grid);
+        $this->grid = $grid;
     }
 
 
@@ -224,6 +212,7 @@ class Maze
     public function scoreGrid()
     {
         if (!$this->isScored) {
+            $this->startPoint->setScore(0);
             $paths = $this->findConnectingPaths($this->startPoint);
             $this->scorePathsRecursively($paths, 1);
 
@@ -248,6 +237,10 @@ class Maze
 
         foreach ($paths as $path) {
             $path->setScore($score);
+
+            if ($path->getType() == Point::TYPE_FINISH) {
+                return;
+            }
 
             foreach ($this->findConnectingPaths($path) as $connectingPath) {
                 if (!$connectingPath->isScored()) {
@@ -284,31 +277,43 @@ class Maze
     private function findRouteRecursively(Point $point, array $route = array())
     {
         $nextPoint = null;
-
+        
         foreach ($this->findConnectingPaths($point) as $nextPointCandidate) {
-            if (!$nextPointCandidate->isScored()) {
-                continue;
+            // If possbile next point is the start, we found what we're looking for
+            if ($nextPointCandidate->getType() == Point::TYPE_START) {
+                return array_values($route);
             }
 
-            if (!$nextPointCandidate->getScore() >= $point->getScore()) {
-                continue;
-            }
-
+            // Possible next point must not already exist in the route
             if (array_key_exists((string)$nextPointCandidate, $route)) {
                 continue;
             }
 
+            // Possible next point must be scored
+            if (!$nextPointCandidate->isScored()) {
+                continue;
+            }
+
+            // Possible next point's score must be below the current point's score
+            if (!$nextPointCandidate->getScore() >= $point->getScore()) {
+                continue;
+            }
+
+            // Possible next point's score must be below the current possible next point's score
             if (null === $nextPoint || $nextPointCandidate->getScore() < $nextPoint->getScore()) {
                 $nextPoint = $nextPointCandidate;
             }
         }
 
-        if (!$nextPoint || $nextPoint->getType() == Point::TYPE_START) {
-            return array_reverse($route);
+        // Seems like we could not find the start.
+        // This means we could nto find the route.
+        if (!$nextPoint) {
+            return array();
         }
 
+        // Add next point to the route
         $route[(string)$nextPoint] = $nextPoint;
-
+        
         return $this->findRouteRecursively($nextPoint, $route);
     }
 
@@ -319,7 +324,9 @@ class Maze
      */
     private function findConnectingPaths(Point $point)
     {
-        if (!in_array($point->getType(), array(Point::TYPE_START, Point::TYPE_FINISH, Point::TYPE_PATH))) {
+        $possiblePointTypes = array(Point::TYPE_START, Point::TYPE_PATH, Point::TYPE_FINISH);
+
+        if (!in_array($point->getType(), $possiblePointTypes)) {
             return array();
         }
         
@@ -347,7 +354,7 @@ class Maze
 
             $connectingPoint = $this->grid[$y][$x];
 
-            if (!in_array($connectingPoint->getType(), array(Point::TYPE_PATH, Point::TYPE_FINISH))) {
+            if (!in_array($connectingPoint->getType(), $possiblePointTypes)) {
                 continue;
             }
 
@@ -359,7 +366,7 @@ class Maze
 }
 
 
-$maze = Maze::createFromImage(__DIR__ . '/maze.png');
+$maze = Maze::createFromImage(__DIR__ . '/maze3.png');
 $maze->scoreGrid();
 
 $routeKeys = array();
@@ -379,11 +386,11 @@ foreach ($maze->getGrid() as $y => $xs) {
             switch ($point->getType())
             {
                 case Point::TYPE_START:
-                    $o .= ' background-color: yellow;';
+                    $o .= ' background-color: blue;';
                     break;
 
                 case Point::TYPE_FINISH:
-                    $o .= ' background-color: blue;';
+                    $o .= ' background-color: yellow;';
                     break;
 
                 case Point::TYPE_WALL:
