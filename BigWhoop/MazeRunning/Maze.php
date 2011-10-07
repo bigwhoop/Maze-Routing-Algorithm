@@ -154,6 +154,10 @@ class Maze
      */
     public function findRoute()
     {
+        if (!$this->isScored) {
+            $this->scoreGrid();
+        }
+
         $route = array();
 
         // We didn't reach the finish point :/

@@ -7,7 +7,6 @@ require __DIR__ . '/BigWhoop/MazeRunning/Maze.php';
 require __DIR__ . '/BigWhoop/MazeRunning/Point.php';
 
 $maze = Maze::createFromImage(__DIR__ . '/maze3.png');
-$maze->scoreGrid();
 
 $routeKeys = array();
 foreach ($maze->findRoute() as $point) {
