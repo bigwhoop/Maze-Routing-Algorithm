@@ -3,10 +3,10 @@ namespace BigWhoop\MazeRunning;
 
 class Point
 {
-    const TYPE_START  = 'S';
-    const TYPE_FINISH = 'F';
-    const TYPE_PATH   = 'P';
-    const TYPE_WALL   = 'W';
+    const TYPE_START  = 'start';
+    const TYPE_FINISH = 'finish';
+    const TYPE_PATH   = 'path';
+    const TYPE_WALL   = 'wall';
     
 
     /**
