@@ -108,10 +108,7 @@ class Maze
     public function scoreGrid()
     {
         if (!$this->isScored) {
-            $this->startPoint->setScore(0);
-            $paths = $this->findConnectingPaths($this->startPoint);
-            $this->scorePathsRecursively($paths, 1);
-
+            $this->scorePathsRecursively(array($this->startPoint), 0);
             $this->isScored = true;
         }
 
@@ -158,11 +155,9 @@ class Maze
             $this->scoreGrid();
         }
 
-        $route = array();
-
         // We didn't reach the finish point :/
         if (!$this->finishPoint->isScored()) {
-            return $route;
+            return array();
         }
 
         return $this->findRouteRecursively($this->finishPoint);
