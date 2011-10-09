@@ -176,12 +176,7 @@ class Maze
         foreach ($this->findConnectingPaths($point) as $nextPointCandidate) {
             // If possbile next point is the start, we found what we're looking for
             if ($nextPointCandidate->getType() == Point::TYPE_START) {
-                return array_values($route);
-            }
-
-            // Possible next point must not already exist in the route
-            if (array_key_exists((string)$nextPointCandidate, $route)) {
-                continue;
+                return array_reverse($route);
             }
 
             // Possible next point must be scored
@@ -206,7 +201,7 @@ class Maze
         }
 
         // Add next point to the route
-        $route[(string)$nextPoint] = $nextPoint;
+        $route[] = $nextPoint;
         
         return $this->findRouteRecursively($nextPoint, $route);
     }
